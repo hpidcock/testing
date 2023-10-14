@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	stdtesting "testing"
 
 	gc "gopkg.in/check.v1"
 
@@ -87,9 +88,12 @@ func (s *cmdSuite) TestCaptureOutput(c *gc.C) {
 
 var _ = gc.Suite(&ExecHelperSuite{})
 
-type ExecHelperSuite struct {
-	testing.PatchExecHelper
+func TestMain(m *stdtesting.M) {
+	testing.ExecHelperProcess()
+	os.Exit(m.Run())
 }
+
+type ExecHelperSuite struct{}
 
 func (s *ExecHelperSuite) TestExecHelperError(c *gc.C) {
 	argChan := make(chan []string, 1)
@@ -101,7 +105,7 @@ func (s *ExecHelperSuite) TestExecHelperError(c *gc.C) {
 		Args:     argChan,
 	}
 
-	f := s.GetExecCommand(cfg)
+	f := testing.ExecCommand(cfg)
 
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}
@@ -136,7 +140,7 @@ func (s *ExecHelperSuite) TestExecHelper(c *gc.C) {
 		Args:   argChan,
 	}
 
-	f := s.GetExecCommand(cfg)
+	f := testing.ExecCommand(cfg)
 
 	stderr := &bytes.Buffer{}
 	stdout := &bytes.Buffer{}

@@ -190,22 +190,6 @@ func ReadEchoArgs(c *gc.C, execName string) string {
 	return actual
 }
 
-// PatchExecHelper is a type that helps you patch out calls to executables by
-// patching out the exec.Command function that creates the exec.Cmd to call
-// them. This is very similar to PatchExecutable above, except it works on
-// windows exe files, is a lot easier to control stderr and stdout, doesn't
-// require arcane bash and batch scripting, and lets you control both the output
-// *and* test the arguments, all without requiring writing any garbage files to
-// disk.
-//
-// PatchExecHelper *must* be embedded in your test suite in order to function.
-// It adds a test to your testsuite which by default simply does nothing.  When
-// the patched exec.Command function is called (returned by GetExecCommand),
-// instead of running the requested executable, we call the test executable with
-// -check.f to rnu only TestExecSuiteHelperProcess, which acts as a configurable
-// main function.
-type PatchExecHelper struct{}
-
 // PatchExecConfig holds the arguments for PatchExecHelper.GetExecCommand.
 type PatchExecConfig struct {
 	// Stderr is the value you'd like written to stderr.
@@ -222,9 +206,9 @@ type PatchExecConfig struct {
 	Args chan<- []string
 }
 
-// GetExecCommand returns a function that can be used to patch out a use of
+// ExecCommand returns a function that can be used to patch out a use of
 // exec.Command. See PatchExecConfig for details about the arguments.
-func (PatchExecHelper) GetExecCommand(cfg PatchExecConfig) func(string, ...string) *exec.Cmd {
+func ExecCommand(cfg PatchExecConfig) func(string, ...string) *exec.Cmd {
 	// This method doesn't technically need to be a method on PatchExecHelper,
 	// but serves as a reminder to embed PatchExecHelper.
 	return func(command string, args ...string) *exec.Cmd {
@@ -237,7 +221,7 @@ func (PatchExecHelper) GetExecCommand(cfg PatchExecConfig) func(string, ...strin
 		// the tests have the same imlpementation, and the first instance of the
 		// test to run calls os.Exit, and therefore none of the other tests will
 		// run.
-		cs := []string{"-check.f=TestExecSuiteHelperProcess", "--", command}
+		cs := []string{"--", command}
 		cs = append(cs, args...)
 		cmd := exec.Command(os.Args[0], cs...)
 
@@ -261,16 +245,9 @@ func (PatchExecHelper) GetExecCommand(cfg PatchExecConfig) func(string, ...strin
 	}
 }
 
-// TestExecSuiteHelperProcess is a fake test which is added to your test suite
-// (because you remembered to embed PatchExecHelper in your suite, right?). It
-// allows us to use the test executable as a helper process to get expected
-// output for tests.  When run normally during tests, this test simply does
-// nothing (and passes).  The above patched exec.Command runs the test
-// executable with -check.f, it runs this test and enables the configurable
-// behavior.  Because the test exits with os.Exit, no additional test output is
-// written.
-func (PatchExecHelper) TestExecSuiteHelperProcess(c *gc.C) {
-	if os.Getenv("JUJU_WANT_HELPER_PROCESS") == "" {
+// ExecHelperProcess should be called from within TestMain(*testing.M).
+func ExecHelperProcess() {
+	if os.Getenv("JUJU_WANT_HELPER_PROCESS") != "1" {
 		return
 	}
 	if stderr := os.Getenv("JUJU_HELPER_PROCESS_STDERR"); stderr != "" {
@@ -289,7 +266,6 @@ func (PatchExecHelper) TestExecSuiteHelperProcess(c *gc.C) {
 		panic(err)
 	}
 	os.Exit(exit)
-
 }
 
 // CaptureOutput runs the given function and captures anything written
